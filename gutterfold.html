@@ -1,0 +1,1302 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>GutterFold — Playing Card PDF Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- pdf.js for PDF splitting feature -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module" id="pdfjs-script"></script>
+<style>
+:root{
+  --bg:#0e0e0e; --surface:#161616; --surface2:#1f1f1f; --surface3:#2a2a2a;
+  --border:#2e2e2e; --accent:#c8a96e; --accent2:#7eb8c8; --danger:#c86e6e;
+  --text:#e8e2d9; --text-dim:#888070; --text-faint:#444;
+  --radius:6px; --mono:'DM Mono',monospace; --serif:'Playfair Display',serif;
+  --strip-h:178px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);display:flex;flex-direction:column}
+
+/* ── HEADER ── */
+header{
+  padding:12px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:14px;
+  background:var(--surface);flex-shrink:0;
+}
+header h1{font-family:var(--serif);font-size:1.45rem;font-weight:900;color:var(--accent);letter-spacing:.02em}
+header h1 span{color:var(--accent2)}
+.header-tag{font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;color:var(--text-dim);border:1px solid var(--border);padding:3px 8px;border-radius:3px}
+.header-sep{width:1px;height:24px;background:var(--border);flex-shrink:0}
+.spacer{flex:1}
+
+.btn{
+  padding:7px 13px;border-radius:var(--radius);font-family:var(--mono);font-size:.71rem;
+  letter-spacing:.04em;cursor:pointer;border:1px solid;transition:all .18s;
+  display:inline-flex;align-items:center;gap:5px;white-space:nowrap;
+}
+.btn-ghost{background:transparent;border-color:var(--border);color:var(--text-dim)}
+.btn-ghost:hover{border-color:var(--accent);color:var(--accent)}
+.btn-accent{background:var(--accent);border-color:var(--accent);color:#0e0e0e;font-weight:500}
+.btn-accent:hover{background:#d4b87a;border-color:#d4b87a}
+.btn-accent:disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.btn-accent2{background:transparent;border-color:var(--accent2);color:var(--accent2)}
+.btn-accent2:hover{background:rgba(126,184,200,.1)}
+
+/* ── LAYOUT ── */
+.body-layout{display:flex;flex:1;min-height:0}
+
+/* ── SIDEBAR ── */
+.sidebar{
+  width:275px;flex-shrink:0;background:var(--surface);
+  border-right:1px solid var(--border);overflow-y:auto;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.sidebar::-webkit-scrollbar{width:4px}
+.sidebar::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.sb-section{border-bottom:1px solid var(--border);padding:14px}
+.sb-title{
+  font-size:.58rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--text-dim);margin-bottom:11px;display:flex;align-items:center;gap:8px;
+}
+.sb-title::after{content:'';flex:1;height:1px;background:var(--border)}
+.settings-grid{display:flex;flex-direction:column;gap:8px}
+.sr{display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center}
+.sr label{font-size:.68rem;color:var(--text-dim)}
+.sr input,.sr select{
+  background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:5px 7px;border-radius:var(--radius);font-family:var(--mono);
+  font-size:.73rem;width:100%;transition:border-color .15s;
+}
+.sr input:focus,.sr select:focus{outline:none;border-color:var(--accent)}
+.sr select option{background:var(--surface2)}
+.upload-row{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.upload-zone{
+  border:1.5px dashed var(--border);border-radius:var(--radius);padding:12px 8px;
+  text-align:center;cursor:pointer;transition:all .18s;position:relative;overflow:hidden;
+}
+.upload-zone:hover{border-color:var(--accent);background:rgba(200,169,110,.04)}
+.upload-zone.drag-over{border-color:var(--accent);background:rgba(200,169,110,.09)}
+.upload-zone input[type=file]{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:1.2rem;margin-bottom:3px}
+.upload-label{font-size:.58rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-dim)}
+.upload-count{font-size:.68rem;color:var(--accent);margin-top:2px;font-weight:500}
+.batch-sel{
+  width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:6px 8px;border-radius:var(--radius);font-family:var(--mono);font-size:.71rem;margin-bottom:8px;
+}
+.batch-sel:focus{outline:none;border-color:var(--accent)}
+.batch-sel option{background:var(--surface2)}
+.batch-btns{display:flex;gap:6px}
+.batch-btns .btn{flex:1;justify-content:center;font-size:.64rem;padding:5px 4px}
+.order-btns{display:flex;gap:6px;flex-wrap:wrap}
+.order-btns .btn{font-size:.63rem;padding:5px 9px}
+
+/* ── MAIN ── */
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+
+/* Preview toolbar */
+.prev-toolbar{
+  padding:9px 16px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;background:var(--surface);flex-shrink:0;
+}
+.prev-label{font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim)}
+.zoom-controls{
+  display:flex;align-items:center;gap:3px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:var(--radius);padding:2px 4px;
+}
+.zoom-btn{
+  width:22px;height:22px;background:none;border:none;color:var(--text-dim);cursor:pointer;
+  font-size:.95rem;line-height:1;border-radius:3px;display:flex;align-items:center;
+  justify-content:center;transition:all .15s;font-family:var(--mono);
+}
+.zoom-btn:hover{background:var(--surface3);color:var(--accent)}
+.zoom-fit{font-size:.75rem}
+.zoom-level{font-size:.66rem;color:var(--text-dim);min-width:36px;text-align:center;user-select:none}
+.page-nav{display:flex;align-items:center;gap:7px;margin-left:auto}
+.page-nav button{
+  width:25px;height:25px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:3px;color:var(--text);cursor:pointer;font-size:.82rem;
+  display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.page-nav button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.page-nav button:disabled{opacity:.3;cursor:default}
+.page-info{font-size:.7rem;color:var(--text-dim);min-width:76px;text-align:center}
+
+/* Canvas wrap */
+.preview-wrap{
+  flex:1;overflow:auto;display:flex;align-items:flex-start;justify-content:center;
+  padding:22px;scrollbar-width:thin;scrollbar-color:var(--border) transparent;min-height:0;
+}
+.preview-wrap::-webkit-scrollbar{width:5px;height:5px}
+.preview-wrap::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+#previewCanvas{display:block;box-shadow:0 8px 40px rgba(0,0,0,.7);border:1px solid var(--border);background:white;flex-shrink:0}
+.empty-state{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:13px;color:var(--text-faint)}
+.empty-state .big{font-size:2.8rem;opacity:.22}
+.empty-state p{font-size:.76rem;letter-spacing:.04em}
+
+/* ── CARD STRIP ── */
+.card-strip-wrap{
+  height:var(--strip-h);flex-shrink:0;border-top:1px solid var(--border);
+  background:var(--surface);display:flex;flex-direction:column;
+}
+.strip-header{
+  padding:5px 12px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:8px;flex-shrink:0;
+}
+.strip-header-label{font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-dim)}
+#cardCount{color:var(--accent);margin-left:3px}
+.strip-sel-hint{font-size:.58rem;color:var(--text-faint)}
+/* Multi-select count badge */
+.sel-badge{
+  font-size:.6rem;background:var(--accent);color:#0e0e0e;
+  padding:1px 7px;border-radius:10px;font-weight:600;display:none;
+}
+.sel-badge.show{display:inline-block}
+.strip-scroll{
+  flex:1;overflow-x:auto;overflow-y:hidden;display:flex;align-items:center;
+  gap:7px;padding:7px 10px;
+  scrollbar-width:thin;scrollbar-color:var(--border) transparent;
+}
+.strip-scroll::-webkit-scrollbar{height:4px}
+.strip-scroll::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+
+/* Strip card */
+.strip-card{flex-shrink:0;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;position:relative;user-select:none}
+.strip-card-pair{
+  display:flex;gap:3px;padding:4px;border:1.5px solid var(--border);border-radius:5px;
+  background:var(--surface2);transition:border-color .12s,background .12s;position:relative;
+}
+.strip-card.selected .strip-card-pair{border-color:var(--accent);background:rgba(200,169,110,.09)}
+.strip-card:hover:not(.selected) .strip-card-pair{border-color:var(--surface3)}
+.strip-thumb{width:36px;height:50px;object-fit:cover;border-radius:3px;display:block}
+.strip-thumb-empty{
+  width:36px;height:50px;border-radius:3px;background:var(--surface3);
+  border:1px dashed var(--border);display:flex;align-items:center;justify-content:center;
+  color:var(--text-faint);font-size:.62rem;
+}
+.strip-label{font-size:.56rem;color:var(--text-dim);max-width:82px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center}
+.strip-idx{font-size:.52rem;color:var(--text-faint);position:absolute;top:2px;left:4px;line-height:1}
+.strip-back-dot{width:7px;height:7px;border-radius:50%;position:absolute;top:2px;right:4px;background:var(--accent2);display:none}
+.has-back .strip-back-dot{display:block}
+.strip-rm{
+  position:absolute;top:-5px;right:-5px;width:15px;height:15px;border-radius:50%;
+  background:var(--surface3);border:1px solid var(--border);color:var(--text-faint);
+  font-size:.5rem;cursor:pointer;display:none;align-items:center;justify-content:center;
+  transition:all .15s;z-index:2;
+}
+.strip-card:hover .strip-rm{display:flex}
+.strip-rm:hover{background:var(--danger);border-color:var(--danger);color:#fff}
+
+/* ── BACK-ASSIGN BAR (below strip) ── */
+.back-assign-bar{
+  display:none;align-items:center;gap:8px;padding:6px 14px;
+  border-top:1px solid var(--border);background:var(--surface2);flex-shrink:0;font-size:.7rem;
+}
+.back-assign-bar.visible{display:flex}
+.back-assign-bar label{color:var(--text-dim);white-space:nowrap;font-size:.68rem}
+.back-assign-bar .sel-count-label{color:var(--accent);font-size:.68rem;white-space:nowrap}
+.back-assign-bar select{
+  background:var(--surface3);border:1px solid var(--border);color:var(--text);
+  padding:4px 8px;border-radius:3px;font-family:var(--mono);font-size:.7rem;flex:1;max-width:220px;
+}
+.back-assign-bar select:focus{outline:none;border-color:var(--accent2)}
+.back-assign-bar select option{background:var(--surface3)}
+.bk-clear{
+  background:none;border:1px solid var(--border);color:var(--text-dim);
+  padding:4px 10px;border-radius:3px;font-family:var(--mono);font-size:.67rem;cursor:pointer;transition:all .15s;
+}
+.bk-clear:hover{border-color:var(--danger);color:var(--danger)}
+.bk-desel{
+  background:none;border:1px solid var(--border);color:var(--text-dim);
+  padding:4px 10px;border-radius:3px;font-family:var(--mono);font-size:.67rem;cursor:pointer;transition:all .15s;margin-left:auto;
+}
+.bk-desel:hover{border-color:var(--accent2);color:var(--accent2)}
+
+/* ── HOVER PREVIEW ── */
+#hoverPreview{
+  position:fixed;pointer-events:none;z-index:9000;display:none;flex-direction:column;
+  gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:8px;
+  padding:10px;box-shadow:0 12px 48px rgba(0,0,0,.85);
+}
+#hoverPreview.show{display:flex}
+#hoverPreview .hp-pair{display:flex;gap:8px}
+#hoverPreview .hp-label{font-size:.6rem;color:var(--text-dim);text-align:center;letter-spacing:.04em}
+
+/* ── PDF SPLITTER MODAL ── */
+#splitterModal{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:10500;
+  align-items:center;justify-content:center;
+}
+#splitterModal.show{display:flex}
+.splitter-box{
+  background:var(--surface);border:1px solid var(--border);border-radius:10px;
+  padding:0;width:560px;max-width:95vw;max-height:90vh;display:flex;flex-direction:column;overflow:hidden;
+}
+.splitter-header{
+  padding:16px 20px 14px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;
+}
+.splitter-header h2{font-family:var(--serif);font-size:1.1rem;color:var(--accent);flex:1}
+.splitter-header .close-btn{
+  width:26px;height:26px;background:none;border:1px solid var(--border);border-radius:4px;
+  color:var(--text-dim);cursor:pointer;font-size:.9rem;display:flex;align-items:center;justify-content:center;transition:all .15s;
+}
+.splitter-header .close-btn:hover{border-color:var(--danger);color:var(--danger)}
+.splitter-body{padding:18px 20px;overflow-y:auto;display:flex;flex-direction:column;gap:14px;flex:1}
+.splitter-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+
+.sp-upload{
+  border:1.5px dashed var(--border);border-radius:var(--radius);padding:18px;
+  text-align:center;cursor:pointer;transition:all .18s;position:relative;overflow:hidden;
+}
+.sp-upload:hover{border-color:var(--accent);background:rgba(200,169,110,.04)}
+.sp-upload.drag-over{border-color:var(--accent);background:rgba(200,169,110,.09)}
+.sp-upload input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.sp-upload-icon{font-size:1.6rem;margin-bottom:6px}
+.sp-upload-label{font-size:.72rem;color:var(--text-dim);letter-spacing:.04em}
+.sp-upload-name{font-size:.7rem;color:var(--accent);margin-top:4px;font-weight:500}
+
+.sp-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.sp-field label{display:block;font-size:.66rem;color:var(--text-dim);margin-bottom:4px;letter-spacing:.04em}
+.sp-field input,.sp-field select{
+  width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);
+  padding:6px 9px;border-radius:var(--radius);font-family:var(--mono);font-size:.73rem;
+}
+.sp-field input:focus,.sp-field select:focus{outline:none;border-color:var(--accent)}
+.sp-field select option{background:var(--surface2)}
+
+.sp-pages-wrap{display:flex;flex-direction:column;gap:6px}
+.sp-page-row{
+  display:grid;grid-template-columns:26px 1fr 80px 80px;
+  gap:8px;align-items:center;background:var(--surface2);
+  border:1px solid var(--border);border-radius:4px;padding:6px 10px;
+}
+.sp-page-num{font-size:.7rem;color:var(--text-dim)}
+.sp-page-thumb{
+  width:100%;height:44px;object-fit:contain;border-radius:2px;background:var(--surface3);
+  display:block;border:1px solid var(--border);
+}
+.sp-page-dest{
+  background:var(--surface3);border:1px solid var(--border);color:var(--text);
+  padding:4px 6px;border-radius:3px;font-family:var(--mono);font-size:.66rem;width:100%;
+}
+.sp-page-dest:focus{outline:none;border-color:var(--accent)}
+.sp-page-dest option{background:var(--surface3)}
+.sp-page-skip{
+  display:flex;align-items:center;gap:5px;font-size:.66rem;color:var(--text-dim);cursor:pointer;
+}
+.sp-page-skip input{width:13px;height:13px;cursor:pointer;accent-color:var(--accent2)}
+
+.sp-progress{display:none;flex-direction:column;gap:6px}
+.sp-progress.show{display:flex}
+.sp-prog-track{background:var(--surface3);border-radius:3px;height:5px;overflow:hidden}
+.sp-prog-bar{height:100%;background:var(--accent2);border-radius:3px;transition:width .2s;width:0%}
+.sp-prog-txt{font-size:.68rem;color:var(--text-dim)}
+
+/* ── PROGRESS MODAL (PDF export) ── */
+#progressModal{
+  display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:10000;
+  align-items:center;justify-content:center;
+}
+#progressModal.show{display:flex}
+.prog-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:28px 36px;min-width:280px;text-align:center}
+.prog-box h3{font-family:var(--serif);font-size:1.1rem;color:var(--accent);margin-bottom:16px}
+.prog-track{background:var(--surface3);border-radius:3px;height:5px;overflow:hidden;margin-bottom:10px}
+.prog-bar{height:100%;background:var(--accent);border-radius:3px;transition:width .2s;width:0%}
+.prog-txt{font-size:.7rem;color:var(--text-dim)}
+
+/* ── TOASTS ── */
+#toasts{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:7px;z-index:9999;pointer-events:none}
+.toast{
+  background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent);
+  padding:9px 14px;border-radius:var(--radius);font-size:.72rem;max-width:260px;
+  animation:tslide .18s ease;pointer-events:all;
+}
+.toast.err{border-left-color:var(--danger)}
+@keyframes tslide{from{transform:translateX(14px);opacity:0}to{transform:translateX(0);opacity:1}}
+</style>
+</head>
+<body>
+
+<!-- ══ HEADER ══════════════════════════════════════════════ -->
+<header>
+  <h1>Gutter<span>Fold</span></h1>
+  <span class="header-tag">Card PDF Maker</span>
+  <div class="header-sep"></div>
+  <button class="btn btn-accent2" id="btnOpenSplitter">⊞ Split PDF → Images</button>
+  <div class="spacer"></div>
+  <button class="btn btn-ghost" id="btnClear">✕ Clear all</button>
+  <button class="btn btn-accent" id="btnGenerate">⬇ Generate PDF</button>
+</header>
+
+<div class="body-layout">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sidebar">
+    <div class="sb-section">
+      <div class="sb-title">Page &amp; Card</div>
+      <div class="settings-grid">
+        <div class="sr"><label>Paper</label>
+          <select id="setPaper"><option value="A4">A4</option><option value="Letter" selected>Letter</option><option value="A3">A3</option></select></div>
+        <div class="sr"><label>Orientation</label>
+          <select id="setOrient"><option value="landscape" selected>Landscape</option><option value="portrait">Portrait</option></select></div>
+        <div class="sr"><label>Card W (mm)</label><input type="number" id="setCardW" value="63.5" step="0.5"/></div>
+        <div class="sr"><label>Card H (mm)</label><input type="number" id="setCardH" value="88.9" step="0.5"/></div>
+        <div class="sr"><label>Gutter (mm)</label><input type="number" id="setGutter" value="3" step="0.5" min="0"/></div>
+        <div class="sr"><label>Margin (mm)</label><input type="number" id="setMargin" value="8" step="1" min="0"/></div>
+        <div class="sr"><label>Spacing (mm)</label><input type="number" id="setSpacing" value="3" step="0.5" min="0"/></div>
+        <div class="sr"><label>Bleed (mm)</label><input type="number" id="setBleed" value="0" step="0.5" min="0"/></div>
+        <div class="sr"><label>Gutter line</label>
+          <select id="setGutterLine"><option value="dashed">Dashed</option><option value="solid">Solid</option><option value="none">None</option></select></div>
+        <div class="sr"><label>Cut marks</label>
+          <select id="setCutMarks"><option value="none" selected>None</option><option value="corner">Corner</option></select></div>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-title">Upload Images</div>
+      <div class="upload-row">
+        <label class="upload-zone" id="zoneFronts">
+          <input type="file" id="inputFronts" accept="image/*" multiple/>
+          <div class="upload-icon">🂠</div>
+          <div class="upload-label">Fronts</div>
+          <div class="upload-count" id="countFronts">0 images</div>
+        </label>
+        <label class="upload-zone" id="zoneBacks">
+          <input type="file" id="inputBacks" accept="image/*" multiple/>
+          <div class="upload-icon">🂡</div>
+          <div class="upload-label">Backs</div>
+          <div class="upload-count" id="countBacks">0 images</div>
+        </label>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-title">Batch Back Assignment</div>
+      <select class="batch-sel" id="batchBackSelect"><option value="">— pick a back image —</option></select>
+      <div class="batch-btns">
+        <button class="btn btn-ghost" id="btnApplyAll">All cards</button>
+        <button class="btn btn-ghost" id="btnApplyUnset">Unassigned</button>
+      </div>
+    </div>
+
+    <div class="sb-section">
+      <div class="sb-title">Card Order
+        <span style="color:var(--accent);font-size:.66rem" id="cardCount">0</span>
+      </div>
+      <div class="order-btns">
+        <button class="btn btn-ghost" id="btnMoveUp">↑ Up</button>
+        <button class="btn btn-ghost" id="btnMoveDown">↓ Down</button>
+        <button class="btn btn-ghost" id="btnDup">⊕ Dup</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <main class="main">
+
+    <!-- Preview toolbar -->
+    <div class="prev-toolbar">
+      <span class="prev-label">Preview</span>
+      <div class="zoom-controls">
+        <button class="zoom-btn" id="btnZoomOut" title="Zoom out (Ctrl+scroll)">−</button>
+        <span class="zoom-level" id="zoomLevel">Fit</span>
+        <button class="zoom-btn" id="btnZoomIn" title="Zoom in (Ctrl+scroll)">+</button>
+        <button class="zoom-btn zoom-fit" id="btnZoomFit" title="Fit to window">⊡</button>
+      </div>
+      <div class="page-nav">
+        <button id="btnPrev">‹</button>
+        <span class="page-info" id="pageInfo">Page 1 / 1</span>
+        <button id="btnNext">›</button>
+      </div>
+    </div>
+
+    <!-- Canvas -->
+    <div class="preview-wrap" id="previewWrap">
+      <div class="empty-state" id="emptyState">
+        <div class="big">🃏</div>
+        <p>Upload card fronts to get started</p>
+        <p style="font-size:.68rem">Or use <strong style="color:var(--accent2)">Split PDF → Images</strong> to extract cards from a PDF</p>
+      </div>
+      <canvas id="previewCanvas"></canvas>
+    </div>
+
+    <!-- Card strip -->
+    <div class="card-strip-wrap">
+      <div class="strip-header">
+        <span class="strip-header-label">Cards</span>
+        <span id="cardCount2" style="font-size:.64rem;color:var(--text-dim)"></span>
+        <span class="sel-badge" id="selBadge">0 selected</span>
+        <div style="flex:1"></div>
+        <span class="strip-sel-hint">click · shift+click · ctrl+click · hover</span>
+      </div>
+      <div class="strip-scroll" id="cardStrip"></div>
+    </div>
+
+    <!-- Back-assign bar (below strip, shown when ≥1 card selected) -->
+    <div class="back-assign-bar" id="backAssignBar">
+      <label>Back for</label>
+      <span class="sel-count-label" id="selCountLabel">selected card:</span>
+      <select id="selectedCardBack"><option value="">No back</option></select>
+      <button class="bk-clear" id="btnClearBack">Clear</button>
+      <button class="bk-desel" id="btnDeselAll">Deselect all</button>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══ HOVER PREVIEW ══ -->
+<div id="hoverPreview">
+  <div class="hp-pair" id="hpPair"></div>
+  <div class="hp-label" id="hpLabel"></div>
+</div>
+
+<!-- ══ PDF SPLITTER MODAL ══ -->
+<div id="splitterModal">
+  <div class="splitter-box">
+    <div class="splitter-header">
+      <h2>⊞ Split PDF → Images</h2>
+      <button class="close-btn" id="btnCloseSplitter">✕</button>
+    </div>
+    <div class="splitter-body" id="splitterBody">
+
+      <!-- Step 1: upload -->
+      <div id="spStep1">
+        <label class="sp-upload" id="spUploadZone">
+          <input type="file" id="spPdfInput" accept=".pdf"/>
+          <div class="sp-upload-icon">📄</div>
+          <div class="sp-upload-label">Drop a PDF or click to upload</div>
+          <div class="sp-upload-name" id="spFileName">No file selected</div>
+        </label>
+
+        <div class="sp-grid" style="margin-top:12px">
+          <div class="sp-field">
+            <label>Render DPI</label>
+            <input type="number" id="spDpi" value="200" min="72" max="600" step="1"/>
+          </div>
+          <div class="sp-field">
+            <label>Auto-crop white border</label>
+            <select id="spAutoCrop">
+              <option value="yes" selected>Yes</option>
+              <option value="no">No</option>
+            </select>
+          </div>
+          <div class="sp-field">
+            <label>White threshold (0–255)</label>
+            <input type="number" id="spWhiteThresh" value="240" min="0" max="255"/>
+          </div>
+          <div class="sp-field">
+            <label>Content density (0–1)</label>
+            <input type="number" id="spDensity" value="0.01" min="0" max="1" step="0.001"/>
+          </div>
+        </div>
+
+        <div style="margin-top:10px;display:flex;gap:8px">
+          <button class="btn btn-accent2" id="btnSpAnalyze" style="flex:1" disabled>Analyse PDF pages →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: page list (hidden until analysed) -->
+      <div id="spStep2" style="display:none;flex-direction:column;gap:10px">
+        <div style="font-size:.68rem;color:var(--text-dim)">
+          Assign each page to <strong style="color:var(--text)">Fronts</strong> or <strong style="color:var(--text)">Backs</strong>, or skip it.
+          Pages are rendered at the configured DPI and optionally auto-cropped.
+        </div>
+
+        <!-- Grid: rows, cols for splitting each page further -->
+        <div class="sp-grid">
+          <div class="sp-field">
+            <label>Grid rows per page</label>
+            <input type="number" id="spRows" value="1" min="1" max="20"/>
+          </div>
+          <div class="sp-field">
+            <label>Grid cols per page</label>
+            <input type="number" id="spCols" value="1" min="1" max="20"/>
+          </div>
+        </div>
+
+        <div class="sp-pages-wrap" id="spPagesList"></div>
+
+        <div class="sp-progress" id="spProgress">
+          <div class="sp-prog-track"><div class="sp-prog-bar" id="spProgBar"></div></div>
+          <div class="sp-prog-txt" id="spProgTxt">Rendering…</div>
+        </div>
+      </div>
+
+    </div>
+    <div class="splitter-footer">
+      <button class="btn btn-ghost" id="btnSpBack" style="display:none">← Back</button>
+      <button class="btn btn-accent" id="btnSpImport" style="display:none">⬇ Import into GutterFold</button>
+      <button class="btn btn-ghost" id="btnSpCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ EXPORT PROGRESS MODAL ══ -->
+<div id="progressModal">
+  <div class="prog-box">
+    <h3>Generating PDF…</h3>
+    <div class="prog-track"><div class="prog-bar" id="progBar"></div></div>
+    <div class="prog-txt" id="progTxt">Preparing…</div>
+  </div>
+</div>
+
+<!-- ══ TOASTS ══ -->
+<div id="toasts"></div>
+
+<script type="module">
+// ═══════════════════════════════════════════════════════════
+// PDF.js setup (module scope)
+// ═══════════════════════════════════════════════════════════
+import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs';
+pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.worker.min.mjs';
+window._pdfjsLib = pdfjsLib; // expose to rest of script
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+const state = {
+  fronts: [],     // {id, name, url, img}
+  backs:  [],     // {id, name, url, img}
+  cards:  [],     // {frontId, backId|null}
+  selection: new Set(), // indices of selected cards (multi-select)
+  currentPage: 0,
+};
+
+let _uid=0;
+const uid=()=>++_uid;
+
+// Splitter state
+const sp={
+  pdfDoc: null,
+  pageCount: 0,
+  pageAssign: [], // 'front'|'back'|'skip' per page
+  pageSkip: [],   // bool per page
+};
+
+// ═══════════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════════
+function toast(msg,type='ok'){
+  const el=document.createElement('div');
+  el.className='toast'+(type==='err'?' err':'');
+  el.textContent=msg;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>el.remove(),3400);
+}
+function fileToDataURL(file){
+  return new Promise((res,rej)=>{const r=new FileReader();r.onload=e=>res(e.target.result);r.onerror=rej;r.readAsDataURL(file)});
+}
+function loadImg(url){
+  return new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=rej;i.src=url});
+}
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════
+function getSettings(){
+  const paper=document.getElementById('setPaper').value;
+  const orient=document.getElementById('setOrient').value;
+  const cardW=parseFloat(document.getElementById('setCardW').value)||63.5;
+  const cardH=parseFloat(document.getElementById('setCardH').value)||88.9;
+  const gutter=parseFloat(document.getElementById('setGutter').value)||3;
+  const margin=parseFloat(document.getElementById('setMargin').value)||8;
+  const spacing=parseFloat(document.getElementById('setSpacing').value)||3;
+  const bleed=parseFloat(document.getElementById('setBleed').value)||0;
+  const gutterLine=document.getElementById('setGutterLine').value;
+  const cutMarks=document.getElementById('setCutMarks').value;
+  const paperSizes={A4:[297,210],Letter:[279.4,215.9],A3:[420,297]};
+  let [pw,ph]=paperSizes[paper];
+  if(orient==='portrait')[pw,ph]=[ph,pw];
+  const pairW=(cardW+bleed*2)*2+gutter;
+  const pairH=cardH+bleed*2;
+  const usableW=pw-margin*2;
+  const usableH=ph-margin*2;
+  const cols=Math.max(1,Math.floor((usableW+spacing)/(pairW+spacing)));
+  const rows=Math.max(1,Math.floor((usableH+spacing)/(pairH+spacing)));
+  return {pw,ph,cardW,cardH,gutter,margin,spacing,bleed,gutterLine,cutMarks,pairW,pairH,cols,rows,cardsPerPage:cols*rows};
+}
+
+// ═══════════════════════════════════════════════════════════
+// IMAGE UPLOAD
+// ═══════════════════════════════════════════════════════════
+async function handleFiles(files,kind){
+  for(const file of Array.from(files)){
+    const url=await fileToDataURL(file);
+    const img=await loadImg(url);
+    state[kind].push({id:uid(),name:file.name.replace(/\.[^.]+$/,''),url,img});
+  }
+  if(kind==='fronts'){
+    const existing=new Set(state.cards.map(c=>c.frontId));
+    for(const f of state.fronts) if(!existing.has(f.id)) state.cards.push({frontId:f.id,backId:null});
+  }
+  render();
+}
+['Fronts','Backs'].forEach(K=>{
+  const input=document.getElementById('input'+K);
+  const zone=document.getElementById('zone'+K);
+  const kl=K.toLowerCase();
+  input.addEventListener('change',e=>handleFiles(e.target.files,kl));
+  zone.addEventListener('dragover',e=>{e.preventDefault();zone.classList.add('drag-over')});
+  zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+  zone.addEventListener('drop',e=>{e.preventDefault();zone.classList.remove('drag-over');handleFiles(e.dataTransfer.files,kl)});
+});
+
+// ═══════════════════════════════════════════════════════════
+// RENDER ORCHESTRATION
+// ═══════════════════════════════════════════════════════════
+function render(){
+  renderCounts();
+  renderBatchSelect();
+  renderStrip();
+  renderBackAssignBar();
+  renderPreview();
+}
+
+function renderCounts(){
+  document.getElementById('countFronts').textContent=state.fronts.length+' image'+(state.fronts.length!==1?'s':'');
+  document.getElementById('countBacks').textContent=state.backs.length+' image'+(state.backs.length!==1?'s':'');
+  const n=state.cards.length;
+  document.getElementById('cardCount').textContent=n;
+  document.getElementById('cardCount2').textContent=n+' card'+(n!==1?'s':'');
+}
+
+function renderBatchSelect(){
+  const sel=document.getElementById('batchBackSelect');
+  const v=sel.value;
+  sel.innerHTML='<option value="">— pick a back image —</option>';
+  state.backs.forEach(b=>{const o=document.createElement('option');o.value=b.id;o.textContent=b.name;sel.appendChild(o)});
+  sel.value=v;
+}
+
+// ═══════════════════════════════════════════════════════════
+// CARD STRIP — MULTI-SELECT
+// Click        = toggle single selection (clears others)
+// Shift+click  = range select
+// Ctrl/Cmd+click = toggle individual without clearing
+// ═══════════════════════════════════════════════════════════
+let lastClickedIdx=null;
+
+function renderStrip(){
+  const strip=document.getElementById('cardStrip');
+  strip.innerHTML='';
+  const badge=document.getElementById('selBadge');
+  const n=state.selection.size;
+  badge.textContent=n+' selected';
+  badge.classList.toggle('show',n>0);
+
+  if(state.cards.length===0){
+    strip.innerHTML='<div style="color:var(--text-faint);font-size:.7rem;padding:0 8px;white-space:nowrap">Upload front images to add cards</div>';
+    return;
+  }
+
+  state.cards.forEach((card,idx)=>{
+    const front=state.fronts.find(f=>f.id===card.frontId);
+    const back=state.backs.find(b=>b.id===card.backId);
+    const isSel=state.selection.has(idx);
+
+    const wrap=document.createElement('div');
+    wrap.className='strip-card'+(isSel?' selected':'')+(back?' has-back':'');
+    wrap.dataset.idx=idx;
+
+    // Remove ×
+    const rm=document.createElement('button');
+    rm.className='strip-rm';rm.title='Remove';rm.textContent='×';
+    rm.addEventListener('click',e=>{
+      e.stopPropagation();
+      state.cards.splice(idx,1);
+      // Rebuild selection: remove idx, shift down indices above it
+      const newSel=new Set();
+      for(const i of state.selection){if(i<idx)newSel.add(i);else if(i>idx)newSel.add(i-1);}
+      state.selection=newSel;
+      if(lastClickedIdx!==null){
+        if(lastClickedIdx===idx)lastClickedIdx=null;
+        else if(lastClickedIdx>idx)lastClickedIdx--;
+      }
+      render();
+    });
+    wrap.appendChild(rm);
+
+    // Pair
+    const pair=document.createElement('div');
+    pair.className='strip-card-pair';
+    const idxLbl=document.createElement('div');idxLbl.className='strip-idx';idxLbl.textContent=idx+1;pair.appendChild(idxLbl);
+    const dot=document.createElement('div');dot.className='strip-back-dot';dot.title='Has back';pair.appendChild(dot);
+
+    if(front){const img=document.createElement('img');img.className='strip-thumb';img.src=front.url;img.alt=front.name;pair.appendChild(img);}
+    else{const d=document.createElement('div');d.className='strip-thumb-empty';d.textContent='?';pair.appendChild(d);}
+    if(back){const img=document.createElement('img');img.className='strip-thumb';img.src=back.url;img.alt=back.name;pair.appendChild(img);}
+    else{const d=document.createElement('div');d.className='strip-thumb-empty';d.textContent='↩';pair.appendChild(d);}
+    wrap.appendChild(pair);
+
+    const lbl=document.createElement('div');lbl.className='strip-label';lbl.textContent=front?front.name:`Card ${idx+1}`;wrap.appendChild(lbl);
+
+    // Click handler: multi-select logic
+    wrap.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(e.shiftKey && lastClickedIdx!==null){
+        // Range select
+        const lo=Math.min(lastClickedIdx,idx);
+        const hi=Math.max(lastClickedIdx,idx);
+        if(!e.ctrlKey && !e.metaKey) state.selection.clear();
+        for(let i=lo;i<=hi;i++) state.selection.add(i);
+      } else if(e.ctrlKey||e.metaKey){
+        // Toggle individual
+        if(state.selection.has(idx)) state.selection.delete(idx);
+        else state.selection.add(idx);
+        lastClickedIdx=idx;
+      } else {
+        // Simple click: if already the only selection, deselect
+        if(state.selection.size===1&&state.selection.has(idx)){
+          state.selection.clear();
+          lastClickedIdx=null;
+        } else {
+          state.selection.clear();
+          state.selection.add(idx);
+          lastClickedIdx=idx;
+        }
+      }
+      renderStrip();
+      renderBackAssignBar();
+      renderPreview();
+    });
+
+    // Hover preview
+    wrap.addEventListener('mouseenter',e=>showHoverPreview(e,idx));
+    wrap.addEventListener('mousemove',e=>moveHoverPreview(e));
+    wrap.addEventListener('mouseleave',hideHoverPreview);
+
+    strip.appendChild(wrap);
+  });
+}
+
+// Deselect all on click on empty area of strip
+document.getElementById('cardStrip').addEventListener('click',e=>{
+  if(e.target===e.currentTarget){
+    state.selection.clear();lastClickedIdx=null;renderStrip();renderBackAssignBar();renderPreview();
+  }
+});
+
+// ═══════════════════════════════════════════════════════════
+// BACK-ASSIGN BAR (multi-select aware)
+// ═══════════════════════════════════════════════════════════
+function renderBackAssignBar(){
+  const bar=document.getElementById('backAssignBar');
+  const sel=document.getElementById('selectedCardBack');
+  const lbl=document.getElementById('selCountLabel');
+
+  if(state.selection.size===0){bar.classList.remove('visible');return;}
+  bar.classList.add('visible');
+
+  const n=state.selection.size;
+  lbl.textContent=n===1?'selected card:':n+' selected cards:';
+
+  // Find common back (if all selected have the same back, preselect it)
+  const selArr=[...state.selection];
+  const backs=selArr.map(i=>state.cards[i]?.backId);
+  const commonBack=backs.every(b=>b===backs[0])?backs[0]:null;
+
+  sel.innerHTML='<option value="">No back</option>';
+  state.backs.forEach(b=>{
+    const o=document.createElement('option');
+    o.value=b.id;o.textContent=b.name;
+    if(b.id===commonBack)o.selected=true;
+    sel.appendChild(o);
+  });
+}
+
+document.getElementById('selectedCardBack').addEventListener('change',e=>{
+  const val=e.target.value?parseInt(e.target.value):null;
+  for(const idx of state.selection) if(state.cards[idx]) state.cards[idx].backId=val;
+  renderStrip();renderBackAssignBar();renderPreview();
+});
+document.getElementById('btnClearBack').addEventListener('click',()=>{
+  for(const idx of state.selection) if(state.cards[idx]) state.cards[idx].backId=null;
+  renderStrip();renderBackAssignBar();renderPreview();
+});
+document.getElementById('btnDeselAll').addEventListener('click',()=>{
+  state.selection.clear();lastClickedIdx=null;renderStrip();renderBackAssignBar();renderPreview();
+});
+
+// ═══════════════════════════════════════════════════════════
+// HOVER PREVIEW
+// ═══════════════════════════════════════════════════════════
+const HP_CARD_W=150;
+
+function showHoverPreview(e,idx){
+  const card=state.cards[idx];
+  const front=state.fronts.find(f=>f.id===card.frontId);
+  const back=state.backs.find(b=>b.id===card.backId);
+  const hp=document.getElementById('hoverPreview');
+  const pair=document.getElementById('hpPair');
+  const label=document.getElementById('hpLabel');
+  pair.innerHTML='';
+
+  function makeCard(imgEntry,side){
+    const w=document.createElement('div');
+    w.style.cssText='display:flex;flex-direction:column;align-items:center;gap:4px';
+    if(imgEntry){
+      const img=document.createElement('img');
+      const ratio=imgEntry.img.naturalHeight/imgEntry.img.naturalWidth;
+      img.src=imgEntry.url;
+      img.style.cssText=`width:${HP_CARD_W}px;height:${Math.round(HP_CARD_W*ratio)}px;object-fit:cover;border-radius:5px;border:1px solid var(--border)`;
+      w.appendChild(img);
+      const l=document.createElement('div');
+      l.style.cssText=`font-size:.6rem;color:var(--text-dim);text-align:center;max-width:${HP_CARD_W}px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap`;
+      l.textContent=imgEntry.name;w.appendChild(l);
+    } else {
+      const ph=document.createElement('div');
+      ph.style.cssText=`width:${HP_CARD_W}px;height:${Math.round(HP_CARD_W*1.4)}px;background:var(--surface3);border:1px dashed var(--border);border-radius:5px;display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:.7rem`;
+      ph.textContent=side;w.appendChild(ph);
+    }
+    return w;
+  }
+
+  pair.appendChild(makeCard(front,'Front'));
+  const div=document.createElement('div');
+  div.style.cssText='width:1px;background:var(--border);align-self:stretch;margin:0 4px';
+  pair.appendChild(div);
+  pair.appendChild(makeCard(back,'Back'));
+
+  label.textContent=`#${idx+1} · ${front?front.name:`Card ${idx+1}`} / ${back?back.name:'No back'}`;
+  hp.classList.add('show');
+  positionHoverPreview(e);
+}
+function moveHoverPreview(e){positionHoverPreview(e)}
+function hideHoverPreview(){document.getElementById('hoverPreview').classList.remove('show')}
+function positionHoverPreview(e){
+  const hp=document.getElementById('hoverPreview');
+  const pw=hp.offsetWidth||320;const ph=hp.offsetHeight||240;
+  let x=e.clientX+16,y=e.clientY-ph-14;
+  if(x+pw>window.innerWidth-10)x=e.clientX-pw-16;
+  if(y<8)y=e.clientY+16;
+  hp.style.left=x+'px';hp.style.top=y+'px';
+}
+
+// ═══════════════════════════════════════════════════════════
+// BATCH ACTIONS
+// ═══════════════════════════════════════════════════════════
+document.getElementById('btnApplyAll').addEventListener('click',()=>{
+  const v=document.getElementById('batchBackSelect').value;
+  if(!v){toast('Pick a back first','err');return}
+  const id=parseInt(v);
+  state.cards.forEach(c=>c.backId=id);
+  render();toast('Applied to all cards');
+});
+document.getElementById('btnApplyUnset').addEventListener('click',()=>{
+  const v=document.getElementById('batchBackSelect').value;
+  if(!v){toast('Pick a back first','err');return}
+  const id=parseInt(v);
+  state.cards.forEach(c=>{if(!c.backId)c.backId=id});
+  render();toast('Applied to unassigned cards');
+});
+document.getElementById('btnMoveUp').addEventListener('click',()=>{
+  const sel=[...state.selection].sort((a,b)=>a-b);
+  if(sel.length===0||sel[0]===0)return;
+  sel.forEach(i=>{[state.cards[i-1],state.cards[i]]=[state.cards[i],state.cards[i-1]]});
+  state.selection=new Set(sel.map(i=>i-1));lastClickedIdx=lastClickedIdx!==null?lastClickedIdx-1:null;render();
+});
+document.getElementById('btnMoveDown').addEventListener('click',()=>{
+  const sel=[...state.selection].sort((a,b)=>b-a);
+  if(sel.length===0||sel[0]>=state.cards.length-1)return;
+  sel.forEach(i=>{[state.cards[i+1],state.cards[i]]=[state.cards[i],state.cards[i+1]]});
+  state.selection=new Set(sel.map(i=>i+1));lastClickedIdx=lastClickedIdx!==null?lastClickedIdx+1:null;render();
+});
+document.getElementById('btnDup').addEventListener('click',()=>{
+  const sel=[...state.selection].sort((a,b)=>b-a);
+  if(sel.length===0)return;
+  const newSel=new Set();
+  sel.forEach(i=>{state.cards.splice(i+1,0,{...state.cards[i]});newSel.add(i+1+sel.filter(x=>x<i).length)});
+  // simpler: just use sequential new indices
+  state.selection=newSel;render();
+});
+document.getElementById('btnClear').addEventListener('click',()=>{
+  if(!confirm('Clear all cards and uploaded images?'))return;
+  state.fronts=[];state.backs=[];state.cards=[];state.selection=new Set();lastClickedIdx=null;state.currentPage=0;render();
+});
+
+// ═══════════════════════════════════════════════════════════
+// ZOOM + PREVIEW
+// ═══════════════════════════════════════════════════════════
+const PREVIEW_DPI=96,MM2PX=PREVIEW_DPI/25.4;
+const ZOOM_STEP=0.15,ZOOM_MIN=0.2,ZOOM_MAX=4.0;
+let manualZoom=null;
+
+function fitScale(s){
+  const wrap=document.getElementById('previewWrap');
+  return Math.min(1.8,(wrap.clientWidth-48)/(s.pw*MM2PX),(wrap.clientHeight-48)/(s.ph*MM2PX));
+}
+function currentScale(s){return manualZoom!==null?manualZoom:fitScale(s)}
+function updateZoomLabel(s){
+  document.getElementById('zoomLevel').textContent=manualZoom===null?'Fit':Math.round(currentScale(s)*100)+'%';
+}
+
+document.getElementById('btnZoomIn').addEventListener('click',()=>{
+  const s=getSettings();manualZoom=Math.min(ZOOM_MAX,parseFloat((currentScale(s)+ZOOM_STEP).toFixed(2)));renderPreview();
+});
+document.getElementById('btnZoomOut').addEventListener('click',()=>{
+  const s=getSettings();manualZoom=Math.max(ZOOM_MIN,parseFloat((currentScale(s)-ZOOM_STEP).toFixed(2)));renderPreview();
+});
+document.getElementById('btnZoomFit').addEventListener('click',()=>{manualZoom=null;renderPreview()});
+document.getElementById('previewWrap').addEventListener('wheel',e=>{
+  if(!e.ctrlKey&&!e.metaKey)return;
+  e.preventDefault();
+  const s=getSettings();
+  manualZoom=Math.min(ZOOM_MAX,Math.max(ZOOM_MIN,parseFloat((currentScale(s)+(e.deltaY<0?ZOOM_STEP:-ZOOM_STEP)).toFixed(2))));
+  renderPreview();
+},{passive:false});
+
+document.getElementById('btnPrev').addEventListener('click',()=>{if(state.currentPage>0){state.currentPage--;renderPreview();}});
+document.getElementById('btnNext').addEventListener('click',()=>{
+  const s=getSettings();const pages=Math.max(1,Math.ceil(state.cards.length/s.cardsPerPage));
+  if(state.currentPage<pages-1){state.currentPage++;renderPreview();}
+});
+
+document.querySelectorAll('#setPaper,#setOrient,#setCardW,#setCardH,#setGutter,#setMargin,#setSpacing,#setBleed,#setGutterLine,#setCutMarks')
+  .forEach(el=>el.addEventListener('change',()=>{manualZoom=null;renderPreview()}));
+
+window.addEventListener('resize',()=>{if(manualZoom===null)renderPreview()});
+
+function renderPreview(){
+  const canvas=document.getElementById('previewCanvas');
+  const empty=document.getElementById('emptyState');
+  if(state.cards.length===0){
+    canvas.style.display='none';empty.style.display='flex';
+    document.getElementById('pageInfo').textContent='Page 1 / 1';
+    document.getElementById('btnPrev').disabled=true;document.getElementById('btnNext').disabled=true;
+    document.getElementById('zoomLevel').textContent='Fit';return;
+  }
+  canvas.style.display='block';empty.style.display='none';
+  const s=getSettings();
+  const pages=Math.max(1,Math.ceil(state.cards.length/s.cardsPerPage));
+  state.currentPage=Math.min(state.currentPage,pages-1);
+  document.getElementById('pageInfo').textContent=`Page ${state.currentPage+1} / ${pages}`;
+  document.getElementById('btnPrev').disabled=state.currentPage===0;
+  document.getElementById('btnNext').disabled=state.currentPage===pages-1;
+  const scale=currentScale(s);updateZoomLabel(s);
+  const W=Math.round(s.pw*MM2PX*scale),H=Math.round(s.ph*MM2PX*scale);
+  canvas.width=W;canvas.height=H;
+  drawPage(canvas.getContext('2d'),s,state.currentPage,mm=>mm*MM2PX*scale,W,H,false);
+}
+
+// ═══════════════════════════════════════════════════════════
+// DRAW PAGE
+// ═══════════════════════════════════════════════════════════
+function drawPage(ctx,s,pageIdx,m2p,W,H,forPdf){
+  const {margin,spacing,pairW,pairH,cols,rows,cardW,cardH,gutter,bleed,gutterLine,cutMarks,cardsPerPage}=s;
+  ctx.fillStyle='#ffffff';ctx.fillRect(0,0,W,H);
+  const pageStart=pageIdx*cardsPerPage;
+
+  for(let row=0;row<rows;row++){
+    for(let col=0;col<cols;col++){
+      const cardIdx=pageStart+row*cols+col;
+      if(cardIdx>=state.cards.length)continue;
+      const card=state.cards[cardIdx];
+      const front=state.fronts.find(f=>f.id===card.frontId);
+      const back=state.backs.find(b=>b.id===card.backId);
+      const isSel=!forPdf&&state.selection.has(cardIdx);
+
+      const px=m2p(margin+col*(pairW+spacing));
+      const py=m2p(margin+row*(pairH+spacing));
+      const cw=m2p(cardW+bleed*2);
+      const ch=m2p(cardH+bleed*2);
+      const gw=m2p(gutter);
+
+      drawCell(ctx,front,px,py,cw,ch,'Front');
+      drawCell(ctx,back,px+cw+gw,py,cw,ch,'Back');
+
+      if(gutterLine!=='none'){
+        ctx.save();
+        ctx.strokeStyle='rgba(0,0,0,0.18)';ctx.lineWidth=forPdf?0.5:Math.max(0.5,m2p(0.1));
+        if(gutterLine==='dashed')ctx.setLineDash([m2p(2),m2p(1.5)]);
+        ctx.beginPath();ctx.moveTo(px+cw+gw/2,py);ctx.lineTo(px+cw+gw/2,py+ch);ctx.stroke();
+        ctx.restore();
+      }
+      if(cutMarks==='corner') drawCutMarks(ctx,px,py,m2p(pairW),ch,m2p,bleed);
+
+      if(isSel){
+        ctx.save();ctx.strokeStyle='rgba(200,169,110,0.85)';ctx.lineWidth=m2p(0.45);
+        ctx.setLineDash([m2p(1.5),m2p(1)]);
+        ctx.strokeRect(px-m2p(.8),py-m2p(.8),m2p(pairW)+m2p(1.6),ch+m2p(1.6));ctx.restore();
+      }
+      if(!forPdf){
+        ctx.save();ctx.fillStyle='rgba(200,169,110,0.75)';
+        ctx.font=`bold ${Math.max(8,m2p(2.6))}px DM Mono,monospace`;
+        ctx.textAlign='left';ctx.fillText(`#${cardIdx+1}`,px+m2p(1),py+m2p(4.5));ctx.restore();
+      }
+    }
+  }
+}
+
+function drawCell(ctx,imgEntry,x,y,w,h,label){
+  if(imgEntry){
+    ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();ctx.drawImage(imgEntry.img,x,y,w,h);ctx.restore();
+  } else {
+    ctx.fillStyle='#f4f4f4';ctx.fillRect(x,y,w,h);
+    ctx.strokeStyle='#e0e0e0';ctx.lineWidth=1;ctx.strokeRect(x,y,w,h);
+    ctx.fillStyle='#bbb';ctx.font=`${Math.max(9,Math.round(h*0.07))}px DM Mono,monospace`;
+    ctx.textAlign='center';ctx.fillText(label,x+w/2,y+h/2+3);
+  }
+}
+
+function drawCutMarks(ctx,x,y,w,h,m2p,bleed){
+  const len=m2p(3),gap=m2p(Math.max(bleed,1));
+  ctx.save();ctx.strokeStyle='#999';ctx.lineWidth=0.5;ctx.setLineDash([]);
+  [[x,y],[x+w,y],[x,y+h],[x+w,y+h]].forEach(([cx,cy],i)=>{
+    const dx=i%2===0?-1:1,dy=i<2?-1:1;
+    ctx.beginPath();ctx.moveTo(cx+dx*gap,cy);ctx.lineTo(cx+dx*(gap+len),cy);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(cx,cy+dy*gap);ctx.lineTo(cx,cy+dy*(gap+len));ctx.stroke();
+  });
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════
+// PDF EXPORT
+// ═══════════════════════════════════════════════════════════
+document.getElementById('btnGenerate').addEventListener('click',async()=>{
+  if(state.cards.length===0){toast('No cards to export','err');return}
+  const modal=document.getElementById('progressModal');
+  const bar=document.getElementById('progBar');
+  const ptxt=document.getElementById('progTxt');
+  modal.classList.add('show');
+  const s=getSettings();
+  const {jsPDF}=window.jspdf;
+  const orient=s.pw>s.ph?'landscape':'portrait';
+  const doc=new jsPDF({orientation:orient,unit:'mm',format:[s.pw,s.ph]});
+  const PDF_DPI=200,m2p=mm=>mm*(PDF_DPI/25.4);
+  const W=Math.round(s.pw*(PDF_DPI/25.4)),H=Math.round(s.ph*(PDF_DPI/25.4));
+  const off=document.createElement('canvas');off.width=W;off.height=H;
+  const offCtx=off.getContext('2d');
+  const pages=Math.ceil(state.cards.length/s.cardsPerPage);
+  for(let p=0;p<pages;p++){
+    bar.style.width=((p/pages)*100)+'%';
+    ptxt.textContent=`Rendering page ${p+1} of ${pages}…`;
+    await new Promise(r=>setTimeout(r,10));
+    drawPage(offCtx,s,p,m2p,W,H,true);
+    if(p>0)doc.addPage([s.pw,s.ph],orient);
+    doc.addImage(off.toDataURL('image/jpeg',0.93),'JPEG',0,0,s.pw,s.ph);
+  }
+  bar.style.width='100%';ptxt.textContent='Saving…';
+  await new Promise(r=>setTimeout(r,80));
+  doc.save('gutterfold_cards.pdf');
+  modal.classList.remove('show');
+  toast(`PDF saved — ${pages} page${pages!==1?'s':''}`);
+});
+
+// ═══════════════════════════════════════════════════════════
+// PDF SPLITTER
+// ═══════════════════════════════════════════════════════════
+function openSplitter(){
+  document.getElementById('splitterModal').classList.add('show');
+  showSpStep(1);
+}
+function closeSplitter(){
+  document.getElementById('splitterModal').classList.remove('show');
+  resetSplitter();
+}
+function resetSplitter(){
+  sp.pdfDoc=null;sp.pageCount=0;sp.pageAssign=[];sp.pageSkip=[];
+  document.getElementById('spFileName').textContent='No file selected';
+  document.getElementById('spPdfInput').value='';
+  document.getElementById('btnSpAnalyze').disabled=true;
+  document.getElementById('spPagesList').innerHTML='';
+  document.getElementById('spProgress').classList.remove('show');
+  showSpStep(1);
+}
+function showSpStep(n){
+  document.getElementById('spStep1').style.display=n===1?'block':'none';
+  document.getElementById('spStep2').style.display=n===2?'flex':'none';
+  document.getElementById('btnSpBack').style.display=n===2?'inline-flex':'none';
+  document.getElementById('btnSpImport').style.display=n===2?'inline-flex':'none';
+}
+
+document.getElementById('btnOpenSplitter').addEventListener('click',openSplitter);
+document.getElementById('btnCloseSplitter').addEventListener('click',closeSplitter);
+document.getElementById('btnSpCancel').addEventListener('click',closeSplitter);
+document.getElementById('btnSpBack').addEventListener('click',()=>showSpStep(1));
+
+// PDF file pick
+const spInput=document.getElementById('spPdfInput');
+const spZone=document.getElementById('spUploadZone');
+spInput.addEventListener('change',e=>loadSpPdf(e.target.files[0]));
+spZone.addEventListener('dragover',e=>{e.preventDefault();spZone.classList.add('drag-over')});
+spZone.addEventListener('dragleave',()=>spZone.classList.remove('drag-over'));
+spZone.addEventListener('drop',e=>{
+  e.preventDefault();spZone.classList.remove('drag-over');
+  const f=e.dataTransfer.files[0];
+  if(f&&f.type==='application/pdf')loadSpPdf(f);
+  else toast('Please drop a PDF file','err');
+});
+
+async function loadSpPdf(file){
+  if(!file)return;
+  document.getElementById('spFileName').textContent=file.name;
+  document.getElementById('btnSpAnalyze').disabled=false;
+  const ab=await file.arrayBuffer();
+  const pdfjsLib=window._pdfjsLib;
+  sp.pdfDoc=await pdfjsLib.getDocument({data:ab}).promise;
+  sp.pageCount=sp.pdfDoc.numPages;
+  document.getElementById('spFileName').textContent=`${file.name} (${sp.pageCount} page${sp.pageCount!==1?'s':''})`;
+}
+
+document.getElementById('btnSpAnalyze').addEventListener('click',async()=>{
+  if(!sp.pdfDoc){toast('Load a PDF first','err');return}
+
+  showSpStep(2);
+  const dpi=Math.max(72,parseInt(document.getElementById('spDpi').value)||200);
+  const list=document.getElementById('spPagesList');
+  list.innerHTML='';
+  sp.pageAssign=[];sp.pageSkip=[];
+
+  const progress=document.getElementById('spProgress');
+  const bar=document.getElementById('spProgBar');
+  const txt=document.getElementById('spProgTxt');
+  progress.classList.add('show');
+
+  for(let p=1;p<=sp.pageCount;p++){
+    bar.style.width=((p-1)/sp.pageCount*100)+'%';
+    txt.textContent=`Rendering page ${p} of ${sp.pageCount}…`;
+    await new Promise(r=>setTimeout(r,0));
+
+    const page=await sp.pdfDoc.getPage(p);
+    const vp=page.getViewport({scale:dpi/72});
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.round(vp.width);canvas.height=Math.round(vp.height);
+    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+    const thumbUrl=canvas.toDataURL('image/jpeg',0.7);
+
+    sp.pageAssign.push('front');sp.pageSkip.push(false);
+
+    // Row
+    const row=document.createElement('div');row.className='sp-page-row';
+
+    const num=document.createElement('div');num.className='sp-page-num';num.textContent=p;row.appendChild(num);
+
+    const thumb=document.createElement('img');thumb.className='sp-page-thumb';thumb.src=thumbUrl;row.appendChild(thumb);
+
+    const destSel=document.createElement('select');destSel.className='sp-page-dest';
+    ['front','back'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v.charAt(0).toUpperCase()+v.slice(1);destSel.appendChild(o)});
+    destSel.value='front';
+    destSel.addEventListener('change',e=>{sp.pageAssign[p-1]=e.target.value});
+    row.appendChild(destSel);
+
+    const skipLabel=document.createElement('label');skipLabel.className='sp-page-skip';
+    const skipChk=document.createElement('input');skipChk.type='checkbox';
+    skipChk.addEventListener('change',e=>{sp.pageSkip[p-1]=e.target.checked;destSel.disabled=e.target.checked});
+    skipLabel.appendChild(skipChk);skipLabel.appendChild(document.createTextNode(' Skip'));
+    row.appendChild(skipLabel);
+
+    list.appendChild(row);
+  }
+  bar.style.width='100%';txt.textContent='Done. Assign pages then click Import.';
+});
+
+document.getElementById('btnSpImport').addEventListener('click',async()=>{
+  if(!sp.pdfDoc){return}
+  const dpi=Math.max(72,parseInt(document.getElementById('spDpi').value)||200);
+  const autoCrop=document.getElementById('spAutoCrop').value==='yes';
+  const whiteThresh=parseInt(document.getElementById('spWhiteThresh').value)||240;
+  const density=parseFloat(document.getElementById('spDensity').value)||0.01;
+  const gridRows=Math.max(1,parseInt(document.getElementById('spRows').value)||1);
+  const gridCols=Math.max(1,parseInt(document.getElementById('spCols').value)||1);
+
+  const progress=document.getElementById('spProgress');
+  const bar=document.getElementById('spProgBar');
+  const txt=document.getElementById('spProgTxt');
+  progress.classList.add('show');
+  bar.style.width='0%';
+
+  const newFronts=[];const newBacks=[];
+  let done=0;
+  const total=sp.pageAssign.filter((_,i)=>!sp.pageSkip[i]).length;
+
+  for(let p=1;p<=sp.pageCount;p++){
+    if(sp.pageSkip[p-1])continue;
+    const dest=sp.pageAssign[p-1];
+    bar.style.width=((done/total)*100)+'%';
+    txt.textContent=`Processing page ${p}/${sp.pageCount} → ${dest}…`;
+    await new Promise(r=>setTimeout(r,0));
+
+    const page=await sp.pdfDoc.getPage(p);
+    const vp=page.getViewport({scale:dpi/72});
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.round(vp.width);canvas.height=Math.round(vp.height);
+    await page.render({canvasContext:canvas.getContext('2d'),viewport:vp}).promise;
+
+    // Auto-crop
+    let cropX=0,cropY=0,cropW=canvas.width,cropH=canvas.height;
+    if(autoCrop){
+      const ctx=canvas.getContext('2d');
+      const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+      const rect=findContentRect(imgData,canvas.width,canvas.height,whiteThresh,density);
+      cropX=rect.x;cropY=rect.y;cropW=rect.w;cropH=rect.h;
+    }
+
+    // Split into grid tiles
+    const tileW=Math.floor(cropW/gridCols);
+    const tileH=Math.floor(cropH/gridRows);
+
+    for(let r=0;r<gridRows;r++){
+      for(let c=0;c<gridCols;c++){
+        const tx=cropX+c*tileW;
+        const ty=cropY+r*tileH;
+        const tw=c===gridCols-1?cropW-(c*tileW):tileW;
+        const th=r===gridRows-1?cropH-(r*tileH):tileH;
+
+        const tileCanvas=document.createElement('canvas');
+        tileCanvas.width=tw;tileCanvas.height=th;
+        tileCanvas.getContext('2d').drawImage(canvas,tx,ty,tw,th,0,0,tw,th);
+        const url=tileCanvas.toDataURL('image/png');
+        const img=await loadImg(url);
+        const name=`pdf-p${p}-r${r+1}c${c+1}`;
+        const entry={id:uid(),name,url,img};
+        if(dest==='front')newFronts.push(entry);
+        else newBacks.push(entry);
+      }
+    }
+    done++;
+  }
+
+  bar.style.width='100%';txt.textContent=`Imported ${newFronts.length} fronts, ${newBacks.length} backs.`;
+
+  // Add to state
+  newFronts.forEach(f=>{state.fronts.push(f);state.cards.push({frontId:f.id,backId:null})});
+  newBacks.forEach(b=>state.backs.push(b));
+
+  render();
+  setTimeout(()=>{closeSplitter();toast(`Imported ${newFronts.length} fronts + ${newBacks.length} backs from PDF`);},500);
+});
+
+// ── Auto-crop helper (mirrors C# logic: density profiling) ──
+function findContentRect(imgData,W,H,whiteThresh,density){
+  const d=imgData.data;
+  const rowCount=new Int32Array(H);
+  const colCount=new Int32Array(W);
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const i=(y*W+x)*4;
+      const r=d[i],g=d[i+1],b=d[i+2],a=d[i+3];
+      const isWhite=a<10||(r>=whiteThresh&&g>=whiteThresh&&b>=whiteThresh);
+      if(!isWhite){rowCount[y]++;colCount[x]++;}
+    }
+  }
+  const rThresh=W*density,cThresh=H*density;
+  let top=H,bottom=0,left=W,right=0;
+  for(let y=0;y<H;y++) if(rowCount[y]>rThresh){if(y<top)top=y;if(y>bottom)bottom=y;}
+  for(let x=0;x<W;x++) if(colCount[x]>cThresh){if(x<left)left=x;if(x>right)right=x;}
+  if(top>bottom||left>right)return{x:0,y:0,w:W,h:H};
+  return{x:left,y:top,w:right-left+1,h:bottom-top+1};
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+render();
+</script>
+</body>
+</html>
