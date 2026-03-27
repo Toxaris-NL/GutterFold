@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -10,6 +9,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <!-- pdf.js for PDF splitting feature -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.4.168/pdf.min.mjs" type="module" id="pdfjs-script"></script>
+<!-- JSZip for downloading images as ZIP -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{
   --bg:#0e0e0e; --surface:#161616; --surface2:#1f1f1f; --surface3:#2a2a2a;
@@ -310,15 +311,23 @@ header h1 span{color:var(--accent2)}
 .prog-bar{height:100%;background:var(--accent);border-radius:3px;transition:width .2s;width:0%}
 .prog-txt{font-size:.7rem;color:var(--text-dim)}
 
-/* ── TOASTS ── */
-#toasts{position:fixed;bottom:18px;right:18px;display:flex;flex-direction:column;gap:7px;z-index:9999;pointer-events:none}
-.toast{
-  background:var(--surface2);border:1px solid var(--border);border-left:3px solid var(--accent);
-  padding:9px 14px;border-radius:var(--radius);font-size:.72rem;max-width:260px;
-  animation:tslide .18s ease;pointer-events:all;
+/* ── STRIP CONTEXT MENU ── */
+#stripCtxMenu{
+  position:fixed;z-index:9500;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:var(--radius);padding:4px 0;
+  box-shadow:0 8px 24px rgba(0,0,0,.7);
+  min-width:200px;display:none;
 }
-.toast.err{border-left-color:var(--danger)}
-@keyframes tslide{from{transform:translateX(14px);opacity:0}to{transform:translateX(0);opacity:1}}
+#stripCtxMenu.show{display:block}
+.ctx-item{
+  padding:7px 14px;font-family:var(--mono);font-size:.71rem;
+  color:var(--text-dim);cursor:pointer;display:flex;align-items:center;gap:8px;
+  transition:background .12s,color .12s;white-space:nowrap;
+}
+.ctx-item:hover{background:var(--surface3);color:var(--text)}
+.ctx-item.danger:hover{color:var(--danger)}
+.ctx-sep{height:1px;background:var(--border);margin:4px 0}
 </style>
 </head>
 <body>
@@ -329,6 +338,7 @@ header h1 span{color:var(--accent2)}
   <span class="header-tag">Card PDF Maker</span>
   <div class="header-sep"></div>
   <button class="btn btn-accent2" id="btnOpenSplitter">⊞ Split PDF → Images</button>
+  <button class="btn btn-ghost" id="btnDownloadImages" title="Download all front and back images as a ZIP">⬇ Download Images</button>
   <div class="spacer"></div>
   <button class="btn btn-ghost" id="btnClear">✕ Clear all</button>
   <button class="btn btn-accent" id="btnGenerate">⬇ Generate PDF</button>
@@ -448,6 +458,14 @@ header h1 span{color:var(--accent2)}
     </div>
 
   </main>
+</div>
+
+<!-- ══ STRIP RIGHT-CLICK CONTEXT MENU ══ -->
+<div id="stripCtxMenu">
+  <div class="ctx-item" id="ctxMoveFrontToBack">🂡 Move front image → Backs</div>
+  <div class="ctx-item" id="ctxMoveBackToFront">🂠 Move back image → Fronts</div>
+  <div class="ctx-sep"></div>
+  <div class="ctx-item danger" id="ctxRemoveCard">✕ Remove card</div>
 </div>
 
 <!-- ══ HOVER PREVIEW ══ -->
@@ -1292,6 +1310,159 @@ function findContentRect(imgData,W,H,whiteThresh,density){
   if(top>bottom||left>right)return{x:0,y:0,w:W,h:H};
   return{x:left,y:top,w:right-left+1,h:bottom-top+1};
 }
+
+// ═══════════════════════════════════════════════════════════
+// STRIP RIGHT-CLICK CONTEXT MENU
+// Right-clicking a card in the strip opens a small menu that lets
+// the user move that card's front image to the backs pool (or vice
+// versa), and remove the card entirely.
+// ═══════════════════════════════════════════════════════════
+let ctxCardIdx = null; // which card was right-clicked
+
+const ctxMenu = document.getElementById('stripCtxMenu');
+
+// Show menu on contextmenu event bubbling from any .strip-card
+document.getElementById('cardStrip').addEventListener('contextmenu', e => {
+  // Walk up from the event target to find a .strip-card
+  const card = e.target.closest('.strip-card');
+  if (!card) return;
+  e.preventDefault();
+
+  ctxCardIdx = parseInt(card.dataset.idx);
+
+  // Decide which menu items make sense for this card
+  const c = state.cards[ctxCardIdx];
+  const hasFront = c && state.fronts.find(f => f.id === c.frontId);
+  const hasBack  = c && c.backId && state.backs.find(b => b.id === c.backId);
+
+  document.getElementById('ctxMoveFrontToBack').style.display = hasFront ? '' : 'none';
+  document.getElementById('ctxMoveBackToFront').style.display = hasBack  ? '' : 'none';
+
+  // Position within viewport, flipping if near edges
+  let x = e.clientX, y = e.clientY;
+  ctxMenu.style.display = 'block'; // briefly visible so offsetWidth is accurate
+  const mw = ctxMenu.offsetWidth, mh = ctxMenu.offsetHeight;
+  ctxMenu.style.display = '';
+  if (x + mw > window.innerWidth  - 8) x = e.clientX - mw;
+  if (y + mh > window.innerHeight - 8) y = e.clientY - mh;
+  ctxMenu.style.left = x + 'px';
+  ctxMenu.style.top  = y + 'px';
+  ctxMenu.classList.add('show');
+});
+
+// Close menu on any click elsewhere
+document.addEventListener('click', () => ctxMenu.classList.remove('show'));
+document.addEventListener('contextmenu', e => {
+  // Close if clicking outside the strip
+  if (!e.target.closest('#cardStrip')) ctxMenu.classList.remove('show');
+});
+
+// ── Move front image → Backs ──────────────────────────────
+// The image that was this card's front becomes a back image.
+// The card that referenced it is removed (it no longer has a front).
+document.getElementById('ctxMoveFrontToBack').addEventListener('click', () => {
+  ctxMenu.classList.remove('show');
+  if (ctxCardIdx === null) return;
+  const c = state.cards[ctxCardIdx];
+  if (!c) return;
+
+  const frontEntry = state.fronts.find(f => f.id === c.frontId);
+  if (!frontEntry) return;
+
+  // Move the image from fronts → backs
+  state.fronts = state.fronts.filter(f => f.id !== frontEntry.id);
+  state.backs.push(frontEntry);
+
+  // Remove every card that referenced this front (usually just one)
+  state.cards = state.cards.filter(card => card.frontId !== frontEntry.id);
+
+  // Clear any back references that pointed to it (it was a front, not a back,
+  // so this is purely defensive — but do update selection indices)
+  state.selection = new Set();
+  lastClickedIdx = null;
+
+  toast(`"${frontEntry.name}" moved to Backs`);
+  render();
+});
+
+// ── Move back image → Fronts ──────────────────────────────
+// The assigned back of this card becomes a new front image
+// (a new card is created for it). The card's backId is cleared.
+document.getElementById('ctxMoveBackToFront').addEventListener('click', () => {
+  ctxMenu.classList.remove('show');
+  if (ctxCardIdx === null) return;
+  const c = state.cards[ctxCardIdx];
+  if (!c || !c.backId) return;
+
+  const backEntry = state.backs.find(b => b.id === c.backId);
+  if (!backEntry) return;
+
+  // Move the image from backs → fronts
+  state.backs = state.backs.filter(b => b.id !== backEntry.id);
+  state.fronts.push(backEntry);
+
+  // Clear this card's backId (and any other card that used this back)
+  state.cards.forEach(card => { if (card.backId === backEntry.id) card.backId = null; });
+
+  // Create a new card entry for the newly promoted front
+  state.cards.push({ frontId: backEntry.id, backId: null });
+
+  toast(`"${backEntry.name}" moved to Fronts`);
+  render();
+});
+
+// ── Remove card ───────────────────────────────────────────
+document.getElementById('ctxRemoveCard').addEventListener('click', () => {
+  ctxMenu.classList.remove('show');
+  if (ctxCardIdx === null) return;
+  state.cards.splice(ctxCardIdx, 1);
+  // Fix selection indices
+  const newSel = new Set();
+  for (const i of state.selection) {
+    if (i < ctxCardIdx) newSel.add(i);
+    else if (i > ctxCardIdx) newSel.add(i - 1);
+  }
+  state.selection = newSel;
+  lastClickedIdx = null;
+  render();
+});
+
+// ═══════════════════════════════════════════════════════════
+// DOWNLOAD ALL IMAGES (fronts + backs) AS ZIP
+// ═══════════════════════════════════════════════════════════
+document.getElementById('btnDownloadImages').addEventListener('click', async () => {
+  const allFronts = state.fronts;
+  const allBacks  = state.backs;
+  const total = allFronts.length + allBacks.length;
+
+  if (total === 0) { toast('No images to download — upload some first', 'err'); return; }
+  if (!window.JSZip) { toast('JSZip not loaded', 'err'); return; }
+
+  const zip = new JSZip();
+  const ff  = zip.folder('fronts');
+  const bf  = zip.folder('backs');
+
+  allFronts.forEach(e => {
+    const b64 = e.url.split(',')[1];
+    const ext = e.url.indexOf('image/png') !== -1 ? 'png' : 'jpg';
+    ff.file(e.name + '.' + ext, b64, { base64: true });
+  });
+  allBacks.forEach(e => {
+    const b64 = e.url.split(',')[1];
+    const ext = e.url.indexOf('image/png') !== -1 ? 'png' : 'jpg';
+    bf.file(e.name + '.' + ext, b64, { base64: true });
+  });
+
+  toast('Preparing ZIP…');
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = 'gutterfold_images.zip';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  toast(`Downloaded ${allFronts.length} fronts + ${allBacks.length} backs as ZIP`);
+});
 
 // ═══════════════════════════════════════════════════════════
 // INIT
