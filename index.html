@@ -15,6 +15,8 @@
 <!-- Third-party libraries (CDN, plain globals — no ES modules) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- UTIF.js — pure-JS TIFF decoder; converts TIFF uploads to canvas/PNG in-browser -->
+<script src="https://cdn.jsdelivr.net/npm/utif2@4.1.0/UTIF.js"></script>
 
 <!--
   PDF.js is loaded as an ES module because its CDN build requires it.
@@ -93,13 +95,13 @@
       <div class="sb-title">Upload Images</div>
       <div class="upload-row">
         <label class="upload-zone" id="zoneFronts">
-          <input type="file" id="inputFronts" accept="image/*" multiple/>
+          <input type="file" id="inputFronts" accept="image/*,.tif,.tiff" multiple/>
           <div class="upload-icon">🂠</div>
           <div class="upload-label">Fronts</div>
           <div class="upload-count" id="countFronts">0 images</div>
         </label>
         <label class="upload-zone" id="zoneBacks">
-          <input type="file" id="inputBacks" accept="image/*" multiple/>
+          <input type="file" id="inputBacks" accept="image/*,.tif,.tiff" multiple/>
           <div class="upload-icon">🂡</div>
           <div class="upload-label">Backs</div>
           <div class="upload-count" id="countBacks">0 images</div>
